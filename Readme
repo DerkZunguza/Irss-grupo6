@@ -1,0 +1,94 @@
+# 📦 TaskOS — Flask + MongoDB + Docker
+
+Stack completa: **Flask** (Python) · **MongoDB** · **Nginx** (proxy) · **Docker Compose**
+
+---
+
+## 📁 Estrutura
+
+```
+projeto/
+├── docker-compose.yml        # Produção (Traefik)
+├── docker-compose.dev.yml    # Desenvolvimento local
+├── .env.example              # Template de variáveis
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── src/app.py            # API Flask
+└── frontend/
+    ├── Dockerfile            # Nginx + proxy /api → Flask
+    └── src/index.html        # Interface HTML/CSS/JS
+```
+
+---
+
+## 🔧 Desenvolvimento local
+
+```bash
+# 1. Clone e entre no projeto
+git clone https://github.com/usuario/projeto && cd projeto
+
+# 2. Crie o .env (dev não usa variáveis obrigatórias, mas já deixa pronto)
+cp .env.example .env
+
+# 3. Suba
+docker compose -f docker-compose.dev.yml up -d --build
+
+# 4. Acesse
+open http://localhost
+
+# Logs
+docker compose -f docker-compose.dev.yml logs -f
+
+# Parar
+docker compose -f docker-compose.dev.yml down
+
+# Limpar volumes (banco)
+docker compose -f docker-compose.dev.yml down -v
+```
+
+---
+
+## 🚀 Produção (Portainer + Traefik)
+
+```bash
+# 1. Na VPS — crie a network (uma vez só)
+docker network create traefik-public
+
+# 2. No Portainer:
+#    Stacks > Add Stack > Repository
+#    Compose path: docker-compose.yml
+#    Adicione as Environment Variables abaixo
+
+# Variáveis obrigatórias no Portainer:
+# MONGO_USER=admin
+# MONGO_PASSWORD=SenhaMuitoForte2024!
+# DOMAIN=seudominio.duckdns.org
+```
+
+---
+
+## 🌐 Endpoints da API
+
+| Método | Rota               | Descrição           |
+|--------|--------------------|---------------------|
+| GET    | /api/health        | Status da API       |
+| GET    | /api/tarefas       | Listar tarefas      |
+| POST   | /api/tarefas       | Criar tarefa        |
+| PUT    | /api/tarefas/:id   | Atualizar tarefa    |
+| DELETE | /api/tarefas/:id   | Remover tarefa      |
+
+### Exemplo POST:
+```json
+{ "titulo": "Minha tarefa", "descricao": "Descrição opcional" }
+```
+
+---
+
+## 🐛 Troubleshooting
+
+**"host not found in upstream api"** → o `proxy_pass` no Dockerfile do frontend usa o nome do **serviço** (`api`), não do container.
+
+**MongoDB não conecta** → verifique se o healthcheck passou: `docker ps`
+
+**Site não carrega** → `docker compose logs frontend` e verifique labels do Traefik.
