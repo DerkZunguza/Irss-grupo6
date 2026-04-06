@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="description" content="Controlo e monitoramento de hardware ESP32-S3 com SIM900 GPRS" />
+
+  <title>Hardware Monitor — ESP32-S3</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="/css/style.css" />
+
+  <!-- Chart.js (gráficos de sensores) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+</head>
+
+<body>
+<div class="app-wrapper">
+
+  <!-- ══════════════════════════════════════════════════════
+       SIDEBAR — visível apenas em desktop (>= 768px)
+       ══════════════════════════════════════════════════════ -->
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+    <div class="sidebar-logo">
+      <!-- Ícone de chip SVG -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="6" height="6" rx="1"/>
+        <path d="M3 9h2m0 6H3m18-6h-2m0 6h2M9 3v2m6 0V3M9 19v2m6 0v-2"/>
+        <rect x="4" y="4" width="16" height="16" rx="2"/>
+      </svg>
+      HW Monitor
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="sidebar-item active" data-nav="dashboard" onclick="navigate('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Dashboard
+      </button>
+      <button class="sidebar-item" data-nav="sensors" onclick="navigate('sensors')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3v18h18"/><polyline points="7 16 11 12 14 15 18 9"/>
+        </svg>
+        Sensores
+      </button>
+      <button class="sidebar-item" data-nav="sms" onclick="navigate('sms')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        SMS / Chat
+      </button>
+      <button class="sidebar-item" data-nav="logs" onclick="navigate('logs')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+        </svg>
+        Logs
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div id="sidebar-status" class="flex items-center gap-1">
+        <span class="status-dot"></span>
+        <span>Verificando...</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════
+       TOPBAR — visível apenas em mobile
+       ══════════════════════════════════════════════════════ -->
+  <header class="topbar" role="banner">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="6" height="6" rx="1"/>
+        <path d="M3 9h2m0 6H3m18-6h-2m0 6h2M9 3v2m6 0V3M9 19v2m6 0v-2"/>
+        <rect x="4" y="4" width="16" height="16" rx="2"/>
+      </svg>
+      HW Monitor
+    </div>
+    <div class="topbar-status">
+      <span class="status-dot"></span>
+      <span>Verificando...</span>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════
+       CONTEÚDO PRINCIPAL
+       ══════════════════════════════════════════════════════ -->
+  <main class="main-content" role="main">
+
+    <!-- ── DASHBOARD ──────────────────────────────────────── -->
+    <section id="section-dashboard" class="section active" aria-label="Dashboard">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Dashboard</h1>
+          <p class="section-subtitle">Estado dos dispositivos em tempo real</p>
+        </div>
+        <div class="flex gap-1 items-center">
+          <span class="refresh-info">
+            <span class="refresh-spinner"></span>
+            auto-refresh 30s
+          </span>
+          <button class="btn btn-primary btn-sm" onclick="openAddDeviceModal()">+ Dispositivo</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↺ Atualizar</button>
+        </div>
+      </div>
+
+      <div id="dashboard-cards" class="card-grid">
+        <!-- Cards gerados dinamicamente pelo app.js -->
+        <div class="device-card skeleton" style="height:180px;"></div>
+        <div class="device-card skeleton" style="height:180px;"></div>
+      </div>
+    </section>
+
+    <!-- ── SENSORES ───────────────────────────────────────── -->
+    <section id="section-sensors" class="section" aria-label="Sensores DHT11">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Sensores DHT11</h1>
+          <p class="section-subtitle">Histórico de temperatura e humidade</p>
+        </div>
+        <span class="refresh-info">
+          <span class="refresh-spinner"></span>
+          auto-refresh 30s
+        </span>
+      </div>
+
+      <!-- Selector de dispositivo -->
+      <div class="toolbar">
+        <div class="form-group" style="flex:1;margin-bottom:0;">
+          <select id="sensor-device-select" class="form-control"
+                  onchange="loadSensors()" aria-label="Seleccionar dispositivo">
+            <option value="">— Seleccionar dispositivo —</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" onclick="loadSensors()">↺ Actualizar</button>
+      </div>
+
+      <!-- Gráfico -->
+      <div class="chart-container">
+        <canvas id="sensor-chart" role="img" aria-label="Gráfico de temperatura e humidade"></canvas>
+        <div id="chart-placeholder" class="text-center text-muted" style="padding:2rem;">
+          Seleccione um dispositivo para ver o gráfico
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-dot" style="background:#f87171;"></span> Temperatura (°C)
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background:#60a5fa;"></span> Humidade (%)
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabela de leituras -->
+      <div class="table-wrap">
+        <table aria-label="Tabela de leituras de sensores">
+          <thead>
+            <tr>
+              <th>Data / Hora</th>
+              <th>Temperatura</th>
+              <th>Humidade</th>
+            </tr>
+          </thead>
+          <tbody id="sensor-table-body">
+            <tr>
+              <td colspan="3" class="text-center text-muted" style="padding:1.5rem;">
+                Seleccione um dispositivo acima
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SMS / CHAT ─────────────────────────────────────── -->
+    <section id="section-sms" class="section" aria-label="Mensagens SMS">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">SMS / Chat</h1>
+          <p class="section-subtitle">Mensagens via SIM900 GPRS Shield</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadSMS()">↺ Actualizar</button>
+      </div>
+
+      <!-- Selector de dispositivo -->
+      <div class="toolbar">
+        <select id="sms-device-select" class="form-control"
+                onchange="loadSMS()" aria-label="Seleccionar dispositivo">
+          <option value="">— Seleccionar dispositivo —</option>
+        </select>
+      </div>
+
+      <!-- Contador de capacidade SIM900 -->
+      <div class="sms-counter" aria-label="Capacidade do SIM900">
+        <span class="sms-counter-label">SIM900:</span>
+        <div class="sms-counter-bar" role="progressbar" aria-valuemin="0" aria-valuemax="20">
+          <div id="sms-fill" class="sms-counter-fill" style="width:0%"></div>
+        </div>
+        <span id="sms-count-label" style="white-space:nowrap;font-size:0.78rem;color:var(--text-secondary)">0 / 20</span>
+      </div>
+
+      <!-- Janela de chat -->
+      <div id="chat-window" class="chat-window" aria-live="polite" aria-label="Histórico de mensagens">
+        <div class="chat-empty">Seleccione um dispositivo para ver as mensagens</div>
+      </div>
+
+      <!-- Formulário de envio -->
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label" for="sms-phone">Número de Destino</label>
+          <input id="sms-phone" type="tel" class="form-control"
+                 placeholder="+258 84 000 0000" autocomplete="tel"
+                 aria-label="Número de telefone de destino" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sms-body">Mensagem</label>
+          <textarea id="sms-body" class="form-control" rows="3"
+                    placeholder="Escreva a mensagem (máx. 160 caracteres)..."
+                    maxlength="160"
+                    aria-label="Texto da mensagem SMS"
+                    oninput="document.getElementById('sms-char-count').textContent = this.value.length"></textarea>
+          <span id="sms-char-count" class="text-muted" style="align-self:flex-end;font-size:0.72rem;">0</span> / 160
+        </div>
+        <button class="btn btn-primary w-full" onclick="sendSMS()">
+          📤 Enviar SMS
+        </button>
+      </div>
+    </section>
+
+    <!-- ── LOGS / HISTÓRICO ───────────────────────────────── -->
+    <section id="section-logs" class="section" aria-label="Logs de comandos">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Logs / Histórico</h1>
+          <p class="section-subtitle">Comandos enviados aos dispositivos</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadLogs()">↺ Actualizar</button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="toolbar">
+        <select id="logs-device-select" class="form-control"
+                onchange="loadLogs()" aria-label="Filtrar por dispositivo">
+          <option value="">— Seleccionar dispositivo —</option>
+        </select>
+        <select id="logs-status-filter" class="form-control" style="max-width:160px;"
+                onchange="loadLogs()" aria-label="Filtrar por estado">
+          <option value="all">Todos</option>
+          <option value="executed">Executados</option>
+          <option value="pending">Pendentes</option>
+        </select>
+      </div>
+
+      <!-- Tabela de logs -->
+      <div class="table-wrap">
+        <table aria-label="Histórico de comandos">
+          <thead>
+            <tr>
+              <th>Data / Hora</th>
+              <th>Alvo</th>
+              <th>Comando</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="logs-table-body">
+            <tr>
+              <td colspan="4" class="text-center text-muted" style="padding:1.5rem;">
+                Seleccione um dispositivo acima
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main><!-- /.main-content -->
+
+  <!-- ══════════════════════════════════════════════════════
+       BOTTOM NAV — visível apenas em mobile
+       ══════════════════════════════════════════════════════ -->
+  <nav class="bottom-nav" role="navigation" aria-label="Navegação inferior">
+    <button class="nav-item active" data-nav="dashboard" onclick="navigate('dashboard')" aria-label="Dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Dashboard
+    </button>
+    <button class="nav-item" data-nav="sensors" onclick="navigate('sensors')" aria-label="Sensores">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 3v18h18"/><polyline points="7 16 11 12 14 15 18 9"/>
+      </svg>
+      Sensores
+    </button>
+    <button class="nav-item" data-nav="sms" onclick="navigate('sms')" aria-label="SMS">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      SMS
+    </button>
+    <button class="nav-item" data-nav="logs" onclick="navigate('logs')" aria-label="Logs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Logs
+    </button>
+  </nav>
+
+</div><!-- /.app-wrapper -->
+
+<!-- ══════════════════════════════════════════════════════
+     BANNER DE INSTALAÇÃO PWA
+     ══════════════════════════════════════════════════════ -->
+<div id="install-banner" role="dialog" aria-label="Instalar aplicação">
+  <p>📱 Instale o <strong>HW Monitor</strong> para acesso rápido offline.</p>
+  <button class="btn btn-primary btn-sm" onclick="installPWA()">Instalar</button>
+  <button class="btn btn-secondary btn-sm" onclick="dismissInstallBanner()">Agora não</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     CONTAINER DE TOASTS
+     ══════════════════════════════════════════════════════ -->
+<div id="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+<!-- Script principal -->
+<script src="/js/app.js"></script>
+</body>
+</html>
