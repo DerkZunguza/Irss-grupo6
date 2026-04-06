@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TaskOS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f0f2f5; padding: 2rem; }
+    h1 { text-align: center; margin-bottom: 1.5rem; color: #333; }
+    .form { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+    .form input { flex: 1; padding: .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
+    .form button { padding: .6rem 1.2rem; background: #4f46e5; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+    .form button:hover { background: #4338ca; }
+    .task { background: #fff; border-radius: 6px; padding: .8rem 1rem; margin-bottom: .6rem; display: flex; align-items: center; gap: .8rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .task.done span { text-decoration: line-through; color: #aaa; }
+    .task span { flex: 1; }
+    .task button { background: #ef4444; color: #fff; border: none; border-radius: 4px; padding: .3rem .7rem; cursor: pointer; }
+    .task button:hover { background: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>TaskOS</h1>
+  <div class="form">
+    <input id="titulo" type="text" placeholder="Nova tarefa..." />
+    <button onclick="criarTarefa()">Adicionar</button>
+  </div>
+  <div id="lista"></div>
+
+  <script>
+    const API = '/api/tarefas';
+
+    async function carregar() {
+      const res = await fetch(API);
+      const tarefas = await res.json();
+      const lista = document.getElementById('lista');
+      lista.innerHTML = '';
+      tarefas.forEach(t => {
+        const id = t._id?.$oid || t._id;
+        const div = document.createElement('div');
+        div.className = 'task' + (t.concluida ? ' done' : '');
+        div.innerHTML = `
+          <input type="checkbox" ${t.concluida ? 'checked' : ''} onchange="toggle('${id}', ${!t.concluida}, '${t.titulo}', '${t.descricao||''}')"/>
+          <span>${t.titulo}</span>
+          <button onclick="remover('${id}')">Remover</button>`;
+        lista.appendChild(div);
+      });
+    }
+
+    async function criarTarefa() {
+      const input = document.getElementById('titulo');
+      if (!input.value.trim()) return;
+      await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({titulo: input.value}) });
+      input.value = '';
+      carregar();
+    }
+
+    async function toggle(id, concluida, titulo, descricao) {
+      await fetch(`${API}/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({titulo, descricao, concluida}) });
+      carregar();
+    }
+
+    async function remover(id) {
+      await fetch(`${API}/${id}`, { method: 'DELETE' });
+      carregar();
+    }
+
+    carregar();
+  </script>
+</body>
+</html>
